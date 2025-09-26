@@ -5,10 +5,12 @@ import pgClient from "../db"
 import { Request, Response } from "express";
 import { Router } from "express";
 const userRouter: Router = Router();
+import { createUserSchema, signInSchema, roomSchema } from "@repo/common-zod/zodtypes"
 import jwt from "jsonwebtoken";
 
 import bcrypt from "bcrypt";
-import { z } from "zod";
+import { email } from "zod";
+
 
 
 type jwtsecretType = string | undefined;
@@ -25,13 +27,13 @@ type User = {
 
 
 userRouter.post("/signup", async function (req: Request, res: Response) {
-    const reqBody = z.object({
-        fullName: z.string(),
-        email: z.email(),
-        password: z.string().min(8)
-    })
+    // const reqBody = z.object({
+    //     fullName: z.string(),
+    //     email: z.email(),
+    //     password: z.string().min(8)
+    // })
 
-    const parsedBody = reqBody.safeParse(req.body);
+    const parsedBody = createUserSchema.safeParse(req.body);
     if (!parsedBody.success) {
         res.status(403).json({
             message: parsedBody.error.issues
@@ -74,7 +76,15 @@ userRouter.post("/signup", async function (req: Request, res: Response) {
 })
 
 userRouter.post("/signin", async function (req: Request, res: Response) {
-    const { email, password } = req.body;
+
+    const parsedSigninBody = signInSchema.safeParse(req.body);
+
+    if (!parsedSigninBody.success) {
+        res.status(403).json({
+            message: parsedSigninBody.error.issues
+        });
+    }
+
 
     const loggingUser = `SELECT password FROM users WHERE email=$1; `
     const loggingUserInsertVal = pgClient.query(loggingUser, [req.body.email]);
@@ -89,7 +99,12 @@ userRouter.post("/signin", async function (req: Request, res: Response) {
     const userRow = (await loggingUserInsertVal).rows[0];
     const userPassword = userRow.password;
 
-    const matchUserPassword = bcrypt.compare(password, userPassword);
+    if (!parsedSigninBody.success) {
+        // handle validation error
+        throw new Error("Invalid input");
+    }
+
+    const matchUserPassword = bcrypt.compare(parsedSigninBody.data?.password, userPassword);
 
     if (!matchUserPassword) {
         res.status(403).json({

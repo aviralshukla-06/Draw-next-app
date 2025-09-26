@@ -23,6 +23,9 @@
     "pg": "^8.16.3",
     "zod": "^4.1.11"
   },
+  "devDependencies": {
+    "@repo/common-zod": "workspace:*"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
