@@ -56,6 +56,9 @@ importers:
       pg:
         specifier: ^8.16.3
         version: 8.16.3
+      prisma:
+        specifier: ^6.16.2
+        version: 6.16.2(typescript@5.9.2)
       zod:
         specifier: ^4.1.11
         version: 4.1.11
@@ -63,6 +66,9 @@ importers:
       '@repo/common-zod':
         specifier: workspace:*
         version: link:../../packages/common-zod
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
 
   apps/web:
     dependencies:
@@ -140,13 +146,13 @@ importers:
       '@prisma/client':
         specifier: 6.16.2
         version: 6.16.2(prisma@6.16.2(typescript@5.9.2))(typescript@5.9.2)
-      prisma:
-        specifier: ^6.16.2
-        version: 6.16.2(typescript@5.9.2)
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      prisma:
+        specifier: ^6.16.2
+        version: 6.16.2(typescript@5.9.2)
 
   packages/eslint-config:
     devDependencies:
