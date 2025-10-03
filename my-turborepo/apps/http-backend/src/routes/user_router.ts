@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 // import express from "express";
-import pgClient from "../db"
+// import pgClient from "../db"
 import { Request, Response } from "express";
 import { Router } from "express";
 const userRouter: Router = Router();
@@ -9,7 +9,9 @@ import { createUserSchema, signInSchema, roomSchema } from "@repo/common-zod/zod
 import jwt from "jsonwebtoken";
 import { prismaClient } from "@repo/db/client"
 import bcrypt from "bcrypt";
-import { email } from "zod";
+import { userMiddleware } from "../middlewares/usermiddleware";
+import { AuthRequest } from "../type";
+// import { email } from "zod";
 
 
 
@@ -74,59 +76,97 @@ userRouter.post("/signin", async function (req: Request, res: Response) {
     const parsedSigninBody = signInSchema.safeParse(req.body);
 
     if (!parsedSigninBody.success) {
-        res.status(403).json({
+        return res.status(403).json({
             message: parsedSigninBody.error.issues
         });
     }
 
 
-    const loggingUser = `SELECT password FROM users WHERE email=$1; `
-    const loggingUserInsertVal = pgClient.query(loggingUser, [req.body.email]);
+    const { email, password } = parsedSigninBody.data;
 
-    if ((await loggingUserInsertVal).rows.length === 0) {
-        res.status(403).json({
-            message: "User does Not exist."
+    try {
+
+        const signingUser = await prismaClient.user.findFirst({
+            where: { email }
         });
-        return
+
+        if (!signingUser) {
+            return res.status(403).json({
+                message: "User does not exist"
+            });
+        }
+        const matchUserPassword = await bcrypt.compare(password, signingUser.password);
+
+        if (!matchUserPassword) {
+            res.status(403).json({
+                message: "Please provide correct password"
+            })
+        }
+
+        if (!jsonTokenSecret) {
+            throw new Error("JWT_SECRET is not defined in environment variables");
+        }
+
+        const token = jwt.sign({
+            email: signingUser.email
+        }, jsonTokenSecret);
+
+
+        return res.status(200).json({
+            message: "Sign-in successful",
+            token,
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: "An error occurred during sign-in",
+        });
     }
+});
 
-    const userRow = (await loggingUserInsertVal).rows[0];
-    const userPassword = userRow.password;
+userRouter.post("/room", userMiddleware, async function (req: AuthRequest, res: Response) {
+    const roomCreation = roomSchema.safeParse(req.body);
 
-    if (!parsedSigninBody.success) {
-        // handle validation error
-        throw new Error("Invalid input");
-    }
-
-    const matchUserPassword = bcrypt.compare(parsedSigninBody.data?.password, userPassword);
-
-    if (!matchUserPassword) {
-        res.status(403).json({
-            message: "Please provide correct password"
+    if (!roomCreation.success) {
+        return res.status(403).json({
+            message: "Incorrect inputs"
         })
     }
 
-    let token: string | undefined
-
-    if (!jsonTokenSecret) {
-        throw new Error("JWT_SECRET is not defined in environment variables");
-    }
-
-    if (await matchUserPassword) {
-        token = jwt.sign({
+    console.log("reached here");
+    const email = req.email
+    const userForRoom = await prismaClient.user.findFirst({
+        where: {
             email: email
-        }, jsonTokenSecret)
-    } else {
-        res.status(403).json({
-            message: "Incorrect details"
+        },
+        select: {
+            id: true
+        }
+    })
+
+    const userId = userForRoom?.id;
+    console.log(email);
+    console.log(userId);
+
+    if (!userId) {
+        return res.status(403).json({
+            message: "User not authenticated"
         });
-        return
     }
+
+    const createdRoom = await prismaClient.room.create({
+        data: {
+            slug: roomCreation.data.name,
+            adminId: userId
+        }
+    })
 
     res.status(200).json({
-        message: "Sign-in successful",
-        token
-    });
+        roomId: createdRoom.id,
+        message: "Room created successfully"
+    })
 })
+
 
 export default userRouter;
